@@ -24,8 +24,10 @@ void PlayerGUI::releaseResources()
 
 void PlayerGUI::paint(juce::Graphics& g)
 {
-    g.fillAll(juce::Colours::darkgrey);
+    g.fillAll(juce::Colour::fromRGB(90, 90, 90)); 
 }
+
+
 
 void PlayerGUI::showmetadata(const juce::File& file)
 {
@@ -53,14 +55,75 @@ void PlayerGUI::showmetadata(const juce::File& file)
     }
 }
 
+void PlayerGUI::sliderValueChanged(juce::Slider* slider)
+{
+    if (slider == &volumeSlider)
+    {
+        playerAudio.setGain((float)slider->getValue());
+    }
+    else if (slider == &speedslider)
+    {
+        playerAudio.setspeed((float)slider->getValue());
+    }
+    else if (slider == &positionSlider)
+    {
+        double pos = slider->getValue() * playerAudio.getLength();
+        playerAudio.setPosition(pos);
+    }
+}
+
+
+void PlayerGUI::timerCallback()
+{
+    double pos = playerAudio.getPosition();
+    double length = playerAudio.getLength();
+    if (loopAB && pointB > pointA && pos >= pointB)
+    {
+        playerAudio.setPosition(pointA);
+        playerAudio.start();
+    }
+
+    if (length > 0)
+    {
+        progress = pos / length;
+        positionSlider.setValue(progress, juce::dontSendNotification);
+    }
+    else
+        progress = 0.0;
+
+    auto formatTime = [](double seconds)
+        {
+            int mins = (int)(seconds / 60);
+            int secs = (int)(fmod(seconds, 60));
+            return juce::String::formatted("%02d:%02d", mins, secs);
+        };
+
+    timeLabel.setText(formatTime(pos) + " || " + formatTime(length),
+        juce::dontSendNotification);
+}
+
+
 
 PlayerGUI::PlayerGUI()
 {
     // Add buttons
-    for (auto* btn : { &loadButton, &restartButton , &stopButton , &startButton , &pauseButton , &endButton , &muteButton , &loopButton})
+    for (auto* btn : { &loadButton, &restartButton , &stopButton , &startButton , &pauseButton , &endButton , &muteButton , &loopButton, &setAButton, &setBButton, &loopABButton })
     {
+        
         btn->addListener(this);
         addAndMakeVisible(btn);
+
+        btn->setColour(juce::TextButton::buttonColourId, juce::Colour::fromRGB(200, 200, 200));
+        btn->setColour(juce::TextButton::buttonOnColourId, juce::Colour::fromRGB(120, 120, 120));
+        btn->setColour(juce::TextButton::textColourOffId, juce::Colours::black);
+        btn->setColour(juce::TextButton::textColourOnId, juce::Colours::black);
+
+        if (btn == &muteButton || btn == &loopButton || btn == &loopABButton)
+            btn->setClickingTogglesState(true);
+        else
+            btn->setClickingTogglesState(false);
+
+        btn->setAlpha(1.0f);       
     }
 
     // Volume slider
@@ -74,6 +137,25 @@ PlayerGUI::PlayerGUI()
     metadata.setColour(juce::Label::textColourId, juce::Colours::white);
     addAndMakeVisible(metadata);
 
+    // Speed slider
+    speedslider.setRange(0.5, 2.0, 0.01);  
+    speedslider.setValue(1.0);             
+    speedslider.addListener(this);         
+    addAndMakeVisible(speedslider); 
+
+    positionSlider.setRange(0.0, 1.0);
+    positionSlider.setSliderStyle(juce::Slider::LinearHorizontal);
+    positionSlider.setTextBoxStyle(juce::Slider::NoTextBox, true, 0, 0);
+    positionSlider.addListener(this);
+    addAndMakeVisible(positionSlider);
+
+    addAndMakeVisible(progressBar);
+    addAndMakeVisible(timeLabel);
+
+    timeLabel.setText("00:00 || 00:00", juce::dontSendNotification);
+    timeLabel.setJustificationType(juce::Justification::centred);
+
+
     addAndMakeVisible(interface);
     interface.onChange = [this]() {
         int index = interface.getSelectedItemIndex();
@@ -84,7 +166,7 @@ PlayerGUI::PlayerGUI()
             showmetadata(file);
         }
      };
-
+    startTimerHz(10);
 }
 
 void PlayerGUI::resized()
@@ -98,9 +180,19 @@ void PlayerGUI::resized()
     endButton.setBounds(520, y, 80, 40);
     muteButton.setBounds(620, y, 80, 40);
     loopButton.setBounds(720, y, 100, 40);
-    metadata.setBounds(20, 140, getWidth() - 40, 40);
-    volumeSlider.setBounds(20, 100, getWidth() - 40, 40);
-    interface.setBounds(20, 180, getWidth() - 40, 40);
+    setAButton.setBounds(840, y, 80, 40);
+    setBButton.setBounds(940, y, 80, 40);
+    loopABButton.setBounds(1040, y, 100, 40);
+
+    metadata.setBounds(20, 250, getWidth() - 40, 40);
+    volumeSlider.setBounds(20, 200, getWidth() - 40, 40);
+    interface.setBounds(20, 300, getWidth() - 40, 40);
+    speedslider.setBounds(20, 220, getWidth() - 40, 40);
+    positionSlider.setBounds(10, 100, getWidth() - 20, 20);
+    positionLabel.setBounds(10, 125, getWidth() - 20, 20);
+    progressBar.setBounds(20, 150, getWidth() - 40, 20);
+    timeLabel.setBounds(20, 175, getWidth() - 40, 20);
+
 }
 
 PlayerGUI::~PlayerGUI()
@@ -193,11 +285,24 @@ void PlayerGUI::buttonClicked(juce::Button* button)
         loopButton.setButtonText(loop ? "Loop: ON" : "Loop: OFF");
     }
 
+    else if (button == &setAButton)
+    {
+        pointA = playerAudio.getPosition();
+        setAButton.setButtonText("A: " + juce::String(pointA, 2) + "s");
+    }
+
+    else if (button == &setBButton)
+    {
+        pointB = playerAudio.getPosition();
+        setBButton.setButtonText("B: " + juce::String(pointB, 2) + "s");
+    }
+
+    else if (button == &loopABButton)
+    {
+        loopAB = !loopAB;
+        loopABButton.setButtonText(loopAB ? "A-B: ON" : "A-B: OFF");
+    }
 
 }
 
-void PlayerGUI::sliderValueChanged(juce::Slider* slider)
-{
-    if (slider == &volumeSlider)
-        playerAudio.setGain((float)slider->getValue());
-}
+

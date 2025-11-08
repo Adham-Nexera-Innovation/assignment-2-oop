@@ -9,18 +9,24 @@ PlayerAudio::~PlayerAudio()
 {
 }
 
+void PlayerAudio::setspeed(float speed)
+{
+    resamplerSource.setResamplingRatio(speed);
+}
+
 void PlayerAudio::prepareToPlay(int samplesPerBlockExpected, double sampleRate)
 {
-    transportSource.prepareToPlay(samplesPerBlockExpected, sampleRate);
+    resamplerSource.prepareToPlay(samplesPerBlockExpected, sampleRate);
 }
 
 void PlayerAudio::getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill)
 {
-    transportSource.getNextAudioBlock(bufferToFill);
+    resamplerSource.getNextAudioBlock(bufferToFill);
 }
 
 void PlayerAudio::releaseResources()
 {
+    resamplerSource.releaseResources();
     transportSource.releaseResources();
 }
 
@@ -30,23 +36,16 @@ bool PlayerAudio::loadFile(const juce::File& file)
     {
         if (auto* reader = formatManager.createReaderFor(file))
         {
-            // 🔑 Disconnect old source first
             transportSource.stop();
             transportSource.setSource(nullptr);
             readerSource.reset();
 
-            // Create new reader source
             readerSource = std::make_unique<juce::AudioFormatReaderSource>(reader, true);
-
-            // Attach safely
-            transportSource.setSource(readerSource.get(),
-                0,
-                nullptr,
-                reader->sampleRate);
-            transportSource.start();
+            transportSource.setSource(readerSource.get(), 0, nullptr, reader->sampleRate);
         }
     }
     return true;
+  
 }
 
 void PlayerAudio::start()

@@ -4,7 +4,8 @@
 
 class PlayerGUI : public juce::Component,
     public juce::Button::Listener,
-    public juce::Slider::Listener
+    public juce::Slider::Listener,
+    public juce::Timer
 {
 public:
     PlayerGUI();
@@ -16,7 +17,10 @@ public:
     void prepareToPlay(int samplesPerBlockExpected, double sampleRate);
     void getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill);
     void releaseResources();
-    void PlayerGUI::showmetadata(const juce::File& file);
+    void showmetadata(const juce::File& file);
+    void timerCallback() override;
+
+
 
 private:
     PlayerAudio playerAudio;
@@ -37,13 +41,27 @@ private:
     juce::Array<juce::File> playlist;
     juce::ComboBox interface;
 
+    juce::Slider speedslider;
+
     juce::Slider volumeSlider;
+
+    juce::Slider positionSlider;
+    juce::Label positionLabel;
+
+   
+    juce::ProgressBar progressBar{ progress };
+    juce::Label timeLabel;
+
+    juce::TextButton setAButton{ "Set A" }, setBButton{ "Set B" }, loopABButton{ "Loop A-B" };
 
     std::unique_ptr<juce::FileChooser> fileChooser;
 
     bool mute = false;
     float volume = 0.5f;
     bool loop = false;
+    double progress = 0.0;
+    bool loopAB = false;
+    double pointA = 0.0, pointB = 0.0;
 
     // Event handlers
     void buttonClicked(juce::Button* button) override;

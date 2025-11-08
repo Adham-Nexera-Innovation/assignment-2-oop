@@ -18,12 +18,16 @@ public:
     void setPosition(double pos);
     double getPosition() const;
     double getLength() const;
+    void setspeed(float speed);
+    
+
+
 
 private:
     juce::AudioFormatManager formatManager;
     std::unique_ptr<juce::AudioFormatReaderSource> readerSource;
     juce::AudioTransportSource transportSource;
-    
+    juce::ResamplingAudioSource resamplerSource{ &transportSource, false, 2 };
 
     // JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PlayerAudio)
 };
